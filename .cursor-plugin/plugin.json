@@ -1,0 +1,7 @@
+{
+  "name": "chatrail",
+  "displayName": "ChatRail",
+  "version": "0.1.5",
+  "description": "A quiet continuity layer that keeps long AI coding tasks oriented across compaction, detours, restarts, and folder changes.",
+  "skills": "./skills/"
+}

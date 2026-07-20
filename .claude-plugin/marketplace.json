@@ -1,0 +1,30 @@
+{
+  "name": "chatrail",
+  "description": "A quiet continuity layer that keeps long AI coding tasks oriented across compaction, detours, restarts, and folder changes.",
+  "owner": {
+    "name": "Orchestrator HQ",
+    "email": "admin@orchestrator.so"
+  },
+  "plugins": [
+    {
+      "name": "chatrail",
+      "description": "A quiet continuity layer that keeps long AI coding tasks oriented across compaction, detours, restarts, and folder changes.",
+      "version": "0.1.5",
+      "source": "./",
+      "author": {
+        "name": "Orchestrator HQ",
+        "email": "admin@orchestrator.so"
+      },
+      "category": "Developer Tools",
+      "keywords": [
+        "chatrail",
+        "continuity",
+        "ai-agents",
+        "codex",
+        "claude-code",
+        "cursor",
+        "agent-skills"
+      ]
+    }
+  ]
+}
