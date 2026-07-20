@@ -6,7 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/ChatRail/scripts/chatrail.py\"",
+            "command": "python3",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/skills/ChatRail/scripts/chatrail.py"],
             "timeout": 5
           }
         ]
@@ -17,7 +18,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/ChatRail/scripts/chatrail.py\"",
+            "command": "python3",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/skills/ChatRail/scripts/chatrail.py"],
             "timeout": 5
           }
         ]
