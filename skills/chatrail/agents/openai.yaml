@@ -1,0 +1,4 @@
+interface:
+  display_name: "ChatRail"
+  short_description: "Stay oriented in long AI threads."
+  default_prompt: "Use $chatrail to reorient the work, classify drift, and make the return path clear."
