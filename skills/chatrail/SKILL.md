@@ -1,5 +1,5 @@
 ---
-name: ChatRail
+name: chatrail
 description: Keep long AI tasks oriented and resumable without requiring Git. Use when the user says ChatRail, reorient, refocus, recalibrate, or asks to recover the main line after drift.
 ---
 

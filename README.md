@@ -38,11 +38,20 @@ once. New and existing tasks use ChatRail on their next message.
 ### Any Agent Skills host
 
 ```text
-npx skills add Orchestrator-HQ/chatrail@ChatRail
+npx skills add Orchestrator-HQ/chatrail --skill chatrail --global --yes
 ```
 
 Hosts that do not support lifecycle hooks can still use the ChatRail skill
 manually for reorientation.
+
+Update the portable skill with:
+
+```text
+npx skills update chatrail --global --yes
+```
+
+Portable installation does not register lifecycle hooks. Use a native plugin
+path when you need automatic turn review.
 
 ## How it behaves
 
@@ -57,14 +66,14 @@ one bundle for its life.
 ## Prove it
 
 ```text
-python3 -m unittest discover -s skills/ChatRail/tests -v
+python3 -m unittest discover -s skills/chatrail/tests -v
 ```
 
 The behavior suite covers non-Git tasks, resumed sessions, folder changes,
 corrupt state, crash recovery, concurrent updates, child-agent isolation, and
 the one-time Stop reminder.
 
-The full design is in [SPEC.md](skills/ChatRail/SPEC.md).
+The full design is in [SPEC.md](skills/chatrail/SPEC.md).
 
 ## License
 
