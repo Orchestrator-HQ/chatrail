@@ -44,6 +44,15 @@ npx skills add Orchestrator-HQ/chatrail --skill chatrail --global --yes
 Hosts that do not support lifecycle hooks can still use the ChatRail skill
 manually for reorientation.
 
+Ask the agent:
+
+```text
+Use $chatrail to reorient this task.
+```
+
+Manual use asks the active agent to apply the ChatRail instructions. It does
+not run automatic turn reviews.
+
 Update the portable skill with:
 
 ```text
@@ -52,6 +61,12 @@ npx skills update chatrail --global --yes
 
 Portable installation does not register lifecycle hooks. Use a native plugin
 path when you need automatic turn review.
+
+### Runtime limits
+
+ChatRail requires Python 3. Its file lock uses the POSIX-only `fcntl` module.
+This release does not support Windows. Automatic turn review also requires a
+host that can register and trust the included lifecycle hooks.
 
 ## How it behaves
 
