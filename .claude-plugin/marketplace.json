@@ -9,7 +9,7 @@
     {
       "name": "chatrail",
       "description": "A quiet continuity layer that keeps long AI coding tasks oriented across compaction, detours, restarts, and folder changes.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "source": "./",
       "author": {
         "name": "Orchestrator HQ",
