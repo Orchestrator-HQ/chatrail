@@ -1,15 +1,38 @@
 {
   "name": "chatrail",
-  "version": "0.2.1",
-  "description": "A quiet continuity layer that keeps long AI coding tasks oriented across compaction, detours, restarts, and folder changes.",
+  "version": "1.0.0",
+  "description": "A quiet checkpoint that keeps long AI coding tasks oriented across compaction, restarts, and folder changes.",
+  "author": {
+    "name": "Orchestrator HQ",
+    "email": "admin@orchestrator.so"
+  },
+  "homepage": "https://github.com/Orchestrator-HQ/chatrail",
+  "repository": "https://github.com/Orchestrator-HQ/chatrail",
+  "license": "MIT",
+  "keywords": [
+    "chatrail",
+    "continuity",
+    "ai-agents",
+    "codex",
+    "claude-code",
+    "cursor",
+    "agent-skills"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "ChatRail",
+    "shortDescription": "Keep long AI tasks on their real road.",
+    "longDescription": "A quiet checkpoint that keeps long AI coding tasks oriented across compaction, restarts, and folder changes.",
+    "developerName": "Orchestrator HQ",
     "category": "Coding",
     "capabilities": [
       "Interactive",
       "Read",
       "Write"
+    ],
+    "websiteURL": "https://github.com/Orchestrator-HQ/chatrail",
+    "defaultPrompt": [
+      "Use ChatRail to keep this task pointed at the user's real goal."
     ]
   }
 }

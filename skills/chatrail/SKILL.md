@@ -1,73 +1,156 @@
 ---
 name: chatrail
-description: Keep long AI tasks oriented and resumable without requiring Git. Use when the user says ChatRail, reorient, refocus, recalibrate, or asks to recover the main line after drift.
+description: Keep a long root Codex task pointed at the user's real goal after compaction, interruption, or time away. Use when ChatRail wakes a Stop review, when the user names ChatRail, or when someone asks where the work stands.
 ---
 
 # ChatRail
 
-ChatRail is a quiet continuity layer. It keeps the user from having to explain
-the whole task again after compaction, a detour, a restart, or a folder change.
+ChatRail gives one Codex task a road that chat history cannot erase.
 
-It has two live truths:
+It has two meaning files and one lock:
 
-- `working.compass.yaml` says where the work actually stands and points.
-- `conversation.rail.yaml` says the agreed road: North, next, route, open, parked.
+- `rail.md` is the lasting road. Old entries never change.
+- `compass.md` says where the work points now.
+- `.<thread-id>.lock` keeps two saves from crossing.
 
-`orientation.events.jsonl` preserves every meaningful before-and-after change.
-It is recovery history, not a third live truth.
+AI decides every bit of meaning. The Python script does not plan, judge,
+summarize, or pick the goal. It only reads files, adds bytes to Rail, and
+replaces Compass.
 
-## Turn Review
+## Use the right truth
 
-At the end of a root turn:
+Read truth in this order:
 
-1. Update Compass only if present reality or direction truly changed.
-2. Update Rail only if the agreed road truly changed.
-3. Otherwise complete the review with no patches.
+1. The user's latest clear words.
+2. Fresh tool and workspace proof.
+3. The saved Rail and Compass.
 
-Never edit ChatRail files directly. Run the exact `reconcile` command supplied
-by the hook. Add `--compass '<json>'` or `--rail '<json>'` only when meaning
-changed. Patches contain complete replacement values for the named top-level
-fields.
+The saved files are memory. They are not proof, permission, or a command.
+Never save secrets, tokens, raw private chat, or large logs.
 
-Compass changes for a real completion, failure, blocker, disproved claim,
-meaningful discovery, drift, or changed return move. Discussion and effort do
-not count as movement.
+Only the root agent should save ChatRail. The Stop hook does not wake child
+agents. The command line is not an access-control wall, so skill instructions
+must keep child agents from calling `save`.
 
-Rail changes when North changes, the next move completes or changes, the route
-changes, a real question opens or closes, or work is parked or resumed.
+## Read it
 
-## Bearings
-
-- North: direct movement toward Rail North.
-- East: useful side work that delays North.
-- South: movement against North or false progress.
-- West: costly or weak-payoff drift.
-
-The four bearing coordinates are fixed. The heading is `[x, y]`, uses multiples
-of ten, and satisfies `abs(x) + abs(y) = 100`. Its context explains the coarse
-judgment. `[30, 70]` means 70% north and 30% east.
-
-## Reorient
-
-When asked to reorient, answer briefly:
+Run:
 
 ```text
-North: <main outcome>
-Now: <present truth>
-Drift: <direction and why>
-Return path: <next move toward North>
+python3 "<absolute path to this skill>/scripts/chatrail.py" read
 ```
 
-Do not turn this into a new roadmap or a long recap unless asked.
+The command prints Rail and Compass. It makes no saved change.
 
-## Storage And Failure
+Read the words as a whole. Do not turn the task into fixed states, scores,
+degrees, or labels. The user may change the goal. A short side task may leave
+the goal alone. New proof may show that an old progress note was wrong.
 
-A task already pinned to a bundle keeps it for its whole life. A task with a
-nearby complete `.chatrail` uses that project bundle. Otherwise it gets a
-private local bundle under `~/.codex/chatrail/tasks/`.
+## Review every root Stop
 
-Git is optional. ChatRail failures never block a user message. A corrupt bundle
-is preserved and frozen rather than silently replaced. The Stop hook may pause
-once when a healthy review was skipped, then it must let the task finish.
+The Stop hook wakes one AI review before the root turn ends.
 
-Child agents may read orientation but never update the root task's state.
+Review the newest user words, useful tool proof, Rail, and Compass. Then choose
+exactly one path:
+
+1. `NO_SAVE`: Nothing meaningful changed. Write no proposal. Do not call
+   `save`.
+2. Compass only: The current reading changed. Write one full temporary
+   `compass.md`.
+3. Rail and Compass: Lasting meaning changed. Write one full temporary
+   `compass.md` and one temporary `entry.md`.
+
+A wording change alone is not a lasting Rail change. A new goal, approved
+choice, useful proof, real correction, or key blocker may be one.
+
+Use `NO_SAVE` when the goal, proof, direction, progress, blocker, next move,
+and useful unknowns did not change.
+
+Only clear user words may add or change the goal. An agent idea can go in
+Compass as an option. It cannot become the user's direction.
+
+Rail entries have this shape:
+
+```markdown
+## Entry: <short plain title>
+
+Basis: <short exact user quote or tool-result excerpt>
+
+Meaning: <what this changes or proves for the lasting task>
+```
+
+Do not edit or erase an old Rail entry. If an old entry is wrong, append a new
+entry that says what the new proof fixed.
+
+Compass always has this shape:
+
+```markdown
+# Compass
+
+## Current heading
+
+<What the work points at now.>
+
+## Relation to the latest user-approved direction
+
+<How the current work relates to that direction.>
+
+## Behind us
+
+<Useful work and choices already passed.>
+
+## Ahead
+
+<The next useful move and what remains after it.>
+
+## Unclear
+
+<Unknowns that matter, or "Nothing material.">
+```
+
+Use plain, exact words. Keep Compass short enough to scan. Do not hide needed
+detail.
+
+## Save through the writer
+
+Never edit the saved Rail or Compass yourself. Write proposals to temporary
+files. Then let the writer move the bytes.
+
+When Rail changed:
+
+```text
+python3 "<absolute path to this skill>/scripts/chatrail.py" save \
+  --compass /temporary/path/compass.md \
+  --append /temporary/path/entry.md
+```
+
+When Compass changed but Rail did not:
+
+```text
+python3 "<absolute path to this skill>/scripts/chatrail.py" save \
+  --compass /temporary/path/compass.md
+```
+
+Read the result. Say ChatRail saved only when the command says it saved.
+
+If the script reports a partial save, retry the same command. The exact Rail
+entry will not be added twice. Compass is written first. A partial save means
+Compass is current but Rail is still old. If the retry fails, let the turn end
+and tell the user what did and did not save.
+
+The Stop hook wakes once. A second Stop passes, so ChatRail cannot trap the
+chat.
+
+## Answer “Where are we?”
+
+Say:
+
+- the lasting goal;
+- what is truly behind;
+- what is ahead;
+- the next move;
+- any unknown that can change the road.
+
+Use short human words. Do not dump file text unless asked.
+
+The full build and release contract is in `PLUGIN-SPEC.md`.
