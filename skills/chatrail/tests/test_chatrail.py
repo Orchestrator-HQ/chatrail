@@ -3,199 +3,384 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
-import shutil
+from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
-from pathlib import Path
+from unittest import mock
+
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "chatrail.py"
-SPEC = importlib.util.spec_from_file_location("chatrail", SCRIPT)
-assert SPEC and SPEC.loader
-chatrail = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(chatrail)
+
+ENTRY = """## Entry: PDF is now the goal
+
+Basis: "The goal is now PDF invoice import."
+
+Meaning: PDF invoice import is the new main direction.
+"""
+
+COMPASS = """# Compass
+
+## Current heading
+
+Build PDF invoice import.
+
+## Relation to the latest user-approved direction
+
+This work follows the new PDF goal.
+
+## Behind us
+
+The old CSV goal remains visible in Rail.
+
+## Ahead
+
+Build PDF text extraction, then confirmation.
+
+## Unclear
+
+The PDF layouts are not known.
+"""
 
 
 class ChatRailTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
-        self.home = self.root / "codex"
-        self.cwd = self.root / "plain"
-        self.cwd.mkdir()
+        self.home = self.root / "codex-home"
+        self.work = self.root / "work"
+        self.work.mkdir()
+        self.env = os.environ.copy()
+        self.env["CODEX_HOME"] = str(self.home)
+        self.env["CODEX_THREAD_ID"] = "thread-123"
 
     def tearDown(self) -> None:
         self.temp.cleanup()
 
-    def hook(self, payload: dict, expected: int = 0) -> subprocess.CompletedProcess[str]:
-        env = {**os.environ, "CODEX_HOME": str(self.home)}
-        result = subprocess.run([sys.executable, str(SCRIPT)], input=json.dumps(payload),
-                                text=True, capture_output=True, env=env, cwd=self.cwd)
-        self.assertEqual(result.returncode, expected, result.stderr)
-        return result
+    @property
+    def task(self) -> Path:
+        return self.home / "chatrail" / "tasks" / "thread-123"
 
-    def prompt(self, session: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
-        return self.hook({"hook_event_name": "UserPromptSubmit", "session_id": session,
-                          "turn_id": "turn-1", "cwd": str(cwd or self.cwd)})
-
-    def receipt(self, session: str) -> dict:
-        return json.loads((self.home / "chatrail" / "receipts" / f"{chatrail.task_key(session)}.json").read_text())
-
-    def test_non_git_tasks_get_separate_local_bundles_and_resume(self) -> None:
-        for session in ("one", "two"):
-            output = self.prompt(session)
-            self.assertIn("additionalContext", output.stdout)
-        one, two = self.receipt("one"), self.receipt("two")
-        self.assertNotEqual(one["bundle"]["path"], two["bundle"]["path"])
-        self.assertEqual(one["bundle"]["kind"], "local")
-        first_path = one["bundle"]["path"]
-        self.assertEqual(
-            sorted(path.name for path in Path(first_path).iterdir()),
-            ["conversation.rail.yaml", "orientation.events.jsonl", "working.compass.yaml"],
+    def command(
+        self, *args: str, payload: dict | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), *args],
+            input=None if payload is None else json.dumps(payload),
+            text=True,
+            capture_output=True,
+            cwd=self.work,
+            env=self.env,
+            check=False,
         )
-        moved = self.root / "moved"; moved.mkdir()
-        self.prompt("one", moved)
-        self.assertEqual(self.receipt("one")["bundle"]["path"], first_path)
-        chatrail.validate_bundle(Path(first_path))
 
-    def test_project_bundle_is_discovered_without_git(self) -> None:
-        project = self.root / "project"; nested = project / "a" / "b"; nested.mkdir(parents=True)
-        chatrail.initialize(project / ".chatrail")
-        self.prompt("project-session", nested)
-        receipt = self.receipt("project-session")
-        self.assertEqual(receipt["bundle"]["kind"], "project")
-        self.assertEqual(Path(receipt["bundle"]["path"]), (project / ".chatrail").resolve())
-        source = SCRIPT.read_text().lower()
-        self.assertNotIn("git rev-parse", source)
-        self.assertNotIn("import subprocess", source)
+    def proposals(self) -> tuple[Path, Path]:
+        entry = self.root / "entry.md"
+        compass = self.root / "compass.md"
+        entry.write_text(ENTRY)
+        compass.write_text(COMPASS)
+        return entry, compass
 
-    def test_malformed_and_child_payloads_are_safe_noops(self) -> None:
-        cases = [{}, {"hook_event_name": "UserPromptSubmit"},
-                 {"hook_event_name": "UserPromptSubmit", "session_id": "child", "agent_id": "a"}]
-        for payload in cases:
-            with self.subTest(payload=payload):
-                self.hook(payload)
-        self.assertFalse((self.home / "chatrail").exists())
+    def test_read_missing_task_is_read_only(self) -> None:
+        result = self.command("read")
 
-    def test_deleted_cwd_and_unavailable_storage_cannot_block_messages(self) -> None:
-        self.prompt("survivor")
-        deleted = self.cwd
-        shutil.rmtree(deleted)
-        payload = {"hook_event_name": "UserPromptSubmit", "session_id": "survivor",
-                   "turn_id": "turn-2", "cwd": str(deleted)}
-        env = {**os.environ, "CODEX_HOME": str(self.home)}
-        resumed = subprocess.run([sys.executable, str(SCRIPT)], input=json.dumps(payload),
-                                 text=True, capture_output=True, env=env, cwd=self.root)
-        self.assertEqual(resumed.returncode, 0)
-        self.assertIn("additionalContext", resumed.stdout)
-        unavailable = self.root / "not-a-directory"; unavailable.write_text("blocked")
-        env["CODEX_HOME"] = str(unavailable)
-        fresh = subprocess.run([sys.executable, str(SCRIPT)], input=json.dumps({**payload, "session_id": "new"}),
-                               text=True, capture_output=True, env=env, cwd=self.root)
-        self.assertEqual(fresh.returncode, 0)
-        self.assertNotIn('"decision":"block"', fresh.stdout.replace(" ", ""))
-
-    def test_stop_blocks_once_then_fails_open(self) -> None:
-        self.prompt("stopper")
-        payload = {"hook_event_name": "Stop", "session_id": "stopper", "cwd": str(self.cwd)}
-        first, second = self.hook(payload), self.hook(payload)
-        self.assertEqual(json.loads(first.stdout)["decision"], "block")
-        self.assertEqual(second.stdout, "")
-
-    def test_reconcile_writes_full_before_after_event_and_completes_review(self) -> None:
-        self.prompt("change")
-        receipt = self.receipt("change")
-        bundle = Path(receipt["bundle"]["path"])
-        before = json.loads((bundle / "working.compass.yaml").read_text())
-        patch = {"heading": {"coordinate": [20, 80], "context": "Useful side work is underway."},
-                 "drift": "Twenty percent east.", "return_path": "Finish the bounded refactor."}
-        env = {**os.environ, "CODEX_HOME": str(self.home)}
-        result = subprocess.run([sys.executable, str(SCRIPT), "reconcile", "--session-id", "change",
-            "--review-id", receipt["review"]["id"], "--reason", "Direction changed",
-            "--compass", json.dumps(patch)], text=True, capture_output=True, env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
-        event = json.loads((bundle / "orientation.events.jsonl").read_text().splitlines()[-1])
-        change = event["transitions"][0]
-        self.assertEqual(change["before"], before)
-        self.assertEqual(change["after"]["drift"], "Twenty percent east.")
-        self.assertEqual(self.receipt("change")["review"]["status"], "complete")
-        chatrail.validate_bundle(bundle)
+        self.assertIn("# Rail", result.stdout)
+        self.assertIn("# Compass", result.stdout)
+        self.assertFalse(self.task.exists())
 
-    def test_no_change_review_does_not_append_event(self) -> None:
-        self.prompt("quiet")
-        receipt = self.receipt("quiet"); bundle = Path(receipt["bundle"]["path"])
-        events = (bundle / "orientation.events.jsonl").read_bytes()
-        env = {**os.environ, "CODEX_HOME": str(self.home)}
-        result = subprocess.run([sys.executable, str(SCRIPT), "reconcile", "--session-id", "quiet",
-            "--review-id", receipt["review"]["id"], "--reason", "No meaning changed"], env=env)
-        self.assertEqual(result.returncode, 0)
-        self.assertEqual((bundle / "orientation.events.jsonl").read_bytes(), events)
+        self.task.mkdir(parents=True)
+        (self.task / "compass.md").write_text(COMPASS)
+        partial = self.command("read")
+        self.assertEqual(partial.returncode, 0, partial.stderr)
+        self.assertIn("# Rail", partial.stdout)
+        self.assertIn(COMPASS, partial.stdout)
 
-    def test_appended_event_recovers_an_interrupted_write(self) -> None:
-        self.prompt("crash")
-        bundle = Path(self.receipt("crash")["bundle"]["path"])
-        old = json.loads((bundle / "conversation.rail.yaml").read_text())
-        new = {**old, "north": "Recovered North"}
-        event = {"version": 1, "event_id": "crash", "review_id": "crash", "ts": chatrail.now(),
-                 "reason": "crash test", "transitions": [{"target": "rail", "before": old, "after": new,
-                 "before_sha256": chatrail.digest(old), "after_sha256": chatrail.digest(new)}]}
-        chatrail.append_event(bundle / "orientation.events.jsonl", event)
-        chatrail.validate_bundle(bundle)
-        self.assertEqual(json.loads((bundle / "conversation.rail.yaml").read_text())["north"], "Recovered North")
+    def test_save_appends_rail_and_replaces_compass(self) -> None:
+        entry, compass = self.proposals()
+        result = self.command("save", "--append", str(entry), "--compass", str(compass))
 
-    def test_stale_concurrent_review_cannot_clobber_newer_state(self) -> None:
-        project = self.root / "shared"; project.mkdir(); bundle = project / ".chatrail"
-        chatrail.initialize(bundle)
-        self.prompt("first", project); self.prompt("second", project)
-        first, second = self.receipt("first"), self.receipt("second")
-        env = {**os.environ, "CODEX_HOME": str(self.home)}
-        changed = subprocess.run([sys.executable, str(SCRIPT), "reconcile", "--session-id", "first",
-            "--review-id", first["review"]["id"], "--reason", "New North",
-            "--rail", json.dumps({"north": "Newer shared North"})], env=env)
-        stale = subprocess.run([sys.executable, str(SCRIPT), "reconcile", "--session-id", "second",
-            "--review-id", second["review"]["id"], "--reason", "Stale no-change"], env=env)
-        self.assertEqual(changed.returncode, 0)
-        self.assertEqual(stale.returncode, 1)
-        self.assertEqual(json.loads((bundle / "conversation.rail.yaml").read_text())["north"], "Newer shared North")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.task / "rail.md").read_text(), f"# Rail\n\n{ENTRY}")
+        self.assertEqual((self.task / "compass.md").read_text(), COMPASS)
 
-    def test_direct_tampering_freezes_writes_but_prompt_fails_open(self) -> None:
-        self.prompt("tamper")
-        receipt = self.receipt("tamper"); bundle = Path(receipt["bundle"]["path"])
-        rail = json.loads((bundle / "conversation.rail.yaml").read_text())
-        rail["north"] = "Unjournaled rewrite"
-        (bundle / "conversation.rail.yaml").write_text(json.dumps(rail))
-        result = self.prompt("tamper")
-        self.assertEqual(result.returncode, 0)
-        self.assertEqual(result.stdout, "")
-        self.assertIn("paused its own writes", result.stderr)
+    def test_save_keeps_every_old_rail_byte(self) -> None:
+        self.task.mkdir(parents=True)
+        old = b"# Rail\n\nOLD BYTES WITHOUT FINAL NEWLINE"
+        (self.task / "rail.md").write_bytes(old)
+        entry, compass = self.proposals()
 
-    def test_two_target_crash_recovers_only_missing_live_write(self) -> None:
-        self.prompt("two-target")
-        bundle = Path(self.receipt("two-target")["bundle"]["path"])
-        old_compass = json.loads((bundle / "working.compass.yaml").read_text())
-        old_rail = json.loads((bundle / "conversation.rail.yaml").read_text())
-        new_compass = {**old_compass, "drift": "Recovered mixed transition"}
-        new_rail = {**old_rail, "north": "Recovered mixed North"}
-        transitions = []
-        for target, old, new in (("compass", old_compass, new_compass), ("rail", old_rail, new_rail)):
-            transitions.append({"target": target, "before": old, "after": new,
-                "before_sha256": chatrail.digest(old), "after_sha256": chatrail.digest(new)})
-        chatrail.append_event(bundle / "orientation.events.jsonl", {"version": 1, "event_id": "mixed",
-            "review_id": "mixed", "ts": chatrail.now(), "reason": "mixed crash", "transitions": transitions})
-        chatrail.atomic(bundle / "working.compass.yaml", new_compass)
-        chatrail.validate_bundle(bundle)
-        self.assertEqual(json.loads((bundle / "working.compass.yaml").read_text())["drift"], "Recovered mixed transition")
-        self.assertEqual(json.loads((bundle / "conversation.rail.yaml").read_text())["north"], "Recovered mixed North")
+        result = self.command("save", "--append", str(entry), "--compass", str(compass))
 
-    def test_corrupt_and_partial_bundles_warn_once_but_never_block(self) -> None:
-        project = self.root / "broken"; project.mkdir(); bundle = project / ".chatrail"; bundle.mkdir()
-        (bundle / "conversation.rail.yaml").write_text("{}")
-        first = self.prompt("broken", project)
-        second = self.prompt("broken", project)
-        self.assertIn("paused its own writes", first.stderr)
-        self.assertEqual(second.stderr, "")
-        self.assertEqual(first.stdout, second.stdout, "fail-open hooks should return no blocking output")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.task / "rail.md").read_bytes().startswith(old))
+
+    def test_exact_retry_does_not_duplicate_rail(self) -> None:
+        entry, compass = self.proposals()
+        first = self.command("save", "--append", str(entry), "--compass", str(compass))
+        second = self.command("save", "--append", str(entry), "--compass", str(compass))
+
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertEqual((self.task / "rail.md").read_text().count(ENTRY.strip()), 1)
+
+    def test_two_concurrent_entries_are_both_kept(self) -> None:
+        _, compass = self.proposals()
+        entries = []
+        for name in ("A", "B"):
+            path = self.root / f"{name}.md"
+            path.write_text(f"## Entry: {name}\n\nBasis: user\n\nMeaning: keep {name}\n")
+            entries.append(path)
+        processes = [
+            subprocess.Popen(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "save",
+                    "--append",
+                    str(entry),
+                    "--compass",
+                    str(compass),
+                ],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=self.work,
+                env=self.env,
+            )
+            for entry in entries
+        ]
+        results = [process.communicate() for process in processes]
+
+        self.assertEqual([process.returncode for process in processes], [0, 0], results)
+        rail = (self.task / "rail.md").read_text()
+        self.assertIn("## Entry: A", rail)
+        self.assertIn("## Entry: B", rail)
+
+    def test_save_rejects_a_symlinked_task_folder(self) -> None:
+        outside = self.root / "outside"
+        outside.mkdir()
+        self.task.parent.mkdir(parents=True)
+        self.task.symlink_to(outside, target_is_directory=True)
+        entry, compass = self.proposals()
+
+        result = self.command("save", "--append", str(entry), "--compass", str(compass))
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((outside / "rail.md").exists())
+        self.assertFalse((outside / "compass.md").exists())
+
+    def test_read_rejects_symlinked_meaning_files(self) -> None:
+        secret = self.root / "secret.txt"
+        secret.write_text("TOP-SECRET-LOCAL-DATA")
+
+        for filename in ("rail.md", "compass.md"):
+            with self.subTest(filename=filename):
+                self.task.mkdir(parents=True, exist_ok=True)
+                for path in self.task.iterdir():
+                    path.unlink()
+                (self.task / "rail.md").write_text("# Rail\n")
+                (self.task / "compass.md").write_text(COMPASS)
+                (self.task / filename).unlink()
+                (self.task / filename).symlink_to(secret)
+
+                result = self.command("read")
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn("TOP-SECRET-LOCAL-DATA", result.stdout)
+
+    def test_read_rejects_bad_saved_headers(self) -> None:
+        for filename, bad_text in (
+            ("rail.md", "# Railroad\n"),
+            ("compass.md", "# Compassage\n"),
+        ):
+            with self.subTest(filename=filename):
+                self.task.mkdir(parents=True, exist_ok=True)
+                for path in self.task.iterdir():
+                    path.unlink()
+                (self.task / "rail.md").write_text("# Rail\n")
+                (self.task / "compass.md").write_text(COMPASS)
+                (self.task / filename).write_text(bad_text)
+
+                result = self.command("read")
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+
+    def test_save_rejects_symlinked_meaning_files(self) -> None:
+        secret = self.root / "secret.txt"
+        secret.write_text("keep me")
+        entry, compass = self.proposals()
+
+        for filename in ("rail.md", "compass.md"):
+            with self.subTest(filename=filename):
+                self.task.mkdir(parents=True, exist_ok=True)
+                for path in self.task.iterdir():
+                    path.unlink()
+                (self.task / "rail.md").write_text("# Rail\n")
+                (self.task / "compass.md").write_text(COMPASS)
+                (self.task / filename).unlink()
+                (self.task / filename).symlink_to(secret)
+
+                result = self.command(
+                    "save", "--append", str(entry), "--compass", str(compass)
+                )
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(secret.read_text(), "keep me")
+
+    def test_save_rejects_bad_saved_headers(self) -> None:
+        entry, compass = self.proposals()
+        for filename, bad_text in (
+            ("rail.md", "# Railroad\n"),
+            ("compass.md", "# Compassage\n"),
+        ):
+            with self.subTest(filename=filename):
+                self.task.mkdir(parents=True, exist_ok=True)
+                for path in self.task.iterdir():
+                    path.unlink()
+                (self.task / "rail.md").write_text("# Rail\n")
+                (self.task / "compass.md").write_text(COMPASS)
+                (self.task / filename).write_text(bad_text)
+
+                result = self.command(
+                    "save", "--append", str(entry), "--compass", str(compass)
+                )
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual((self.task / filename).read_text(), bad_text)
+
+    def test_save_rejects_a_symlinked_lock_file(self) -> None:
+        self.task.parent.mkdir(parents=True)
+        outside_lock = self.root / "outside.lock"
+        outside_lock.write_text("keep me")
+        (self.task.parent / ".thread-123.lock").symlink_to(outside_lock)
+        entry, compass = self.proposals()
+
+        result = self.command("save", "--append", str(entry), "--compass", str(compass))
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(outside_lock.read_text(), "keep me")
+        self.assertFalse(self.task.exists())
+
+    def test_bad_input_changes_no_saved_file(self) -> None:
+        self.task.mkdir(parents=True)
+        old_rail = "# Rail\n\nKeep me.\n"
+        old_compass = "# Compass\n\nKeep me.\n"
+        (self.task / "rail.md").write_text(old_rail)
+        (self.task / "compass.md").write_text(old_compass)
+        bad = self.root / "bad.md"
+        bad.write_text("not a compass")
+
+        result = self.command("save", "--compass", str(bad))
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual((self.task / "rail.md").read_text(), old_rail)
+        self.assertEqual((self.task / "compass.md").read_text(), old_compass)
+
+    def test_compass_header_must_match_the_whole_first_line(self) -> None:
+        self.task.mkdir(parents=True)
+        old_rail = "# Rail\n\nKeep me.\n"
+        old_compass = "# Compass\n\nKeep me.\n"
+        (self.task / "rail.md").write_text(old_rail)
+        (self.task / "compass.md").write_text(old_compass)
+        bad_compass = self.root / "bad-compass.md"
+        bad_compass.write_text("# Compassage\n\nDo not save me.\n")
+        entry = self.root / "entry.md"
+        entry.write_text(ENTRY)
+
+        result = self.command(
+            "save", "--append", str(entry), "--compass", str(bad_compass)
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual((self.task / "rail.md").read_text(), old_rail)
+        self.assertEqual((self.task / "compass.md").read_text(), old_compass)
+
+    def test_entry_header_must_match_the_whole_first_line(self) -> None:
+        self.task.mkdir(parents=True)
+        old_rail = "# Rail\n\nKeep me.\n"
+        old_compass = "# Compass\n\nKeep me.\n"
+        compass = self.root / "compass.md"
+        compass.write_text(COMPASS)
+
+        for first_line in (
+            "## Entryway: Do not save me",
+            "## Entry:way",
+            "## Entry:",
+        ):
+            with self.subTest(first_line=first_line):
+                (self.task / "rail.md").write_text(old_rail)
+                (self.task / "compass.md").write_text(old_compass)
+                bad_entry = self.root / "bad-entry.md"
+                bad_entry.write_text(f"{first_line}\n")
+
+                result = self.command(
+                    "save", "--append", str(bad_entry), "--compass", str(compass)
+                )
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual((self.task / "rail.md").read_text(), old_rail)
+                self.assertEqual((self.task / "compass.md").read_text(), old_compass)
+
+    def test_compass_is_written_even_without_rail_append(self) -> None:
+        _, compass = self.proposals()
+        result = self.command("save", "--compass", str(compass))
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.task / "rail.md").read_text(), "# Rail\n")
+        self.assertEqual((self.task / "compass.md").read_text(), COMPASS)
+
+    def test_partial_save_is_safe_to_retry(self) -> None:
+        spec = importlib.util.spec_from_file_location("chatrail_runtime", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(module)
+        entry, compass = self.proposals()
+        real_write = module.atomic_write
+
+        def fail_rail(path: Path, data: bytes) -> None:
+            if path.name == "rail.md":
+                raise OSError("planned rail failure")
+            real_write(path, data)
+
+        with mock.patch.dict(os.environ, {"CODEX_HOME": str(self.home)}):
+            with mock.patch.object(module, "atomic_write", side_effect=fail_rail):
+                code = module.save_files("thread-123", compass, entry)
+
+            self.assertNotEqual(code, 0)
+            self.assertEqual((self.task / "compass.md").read_text(), COMPASS)
+            self.assertFalse((self.task / "rail.md").exists())
+            code = module.save_files("thread-123", compass, entry)
+        self.assertEqual(code, 0)
+        self.assertEqual((self.task / "rail.md").read_text().count(ENTRY.strip()), 1)
+        self.assertEqual((self.task / "compass.md").read_text(), COMPASS)
+
+    def test_stop_wakes_only_the_first_root_stop(self) -> None:
+        base = {"hook_event_name": "Stop", "session_id": "thread-123"}
+        root = self.command("stop", payload=base)
+        active = self.command("stop", payload={**base, "stop_hook_active": True})
+        child = self.command("stop", payload={**base, "agent_id": "child-1"})
+
+        self.assertEqual(json.loads(root.stdout)["decision"], "block")
+        reason = json.loads(root.stdout)["reason"]
+        self.assertIn("AI review", reason)
+        self.assertIn("NO_SAVE", reason)
+        self.assertIn("goal, proof, direction, progress, blocker, next move", reason)
+        self.assertIn("write Compass only", reason)
+        self.assertEqual(active.stdout, "")
+        self.assertEqual(child.stdout, "")
+
+    def test_runtime_is_small_and_has_no_semantic_engine(self) -> None:
+        source = SCRIPT.read_text()
+        nonblank = sum(bool(line.strip()) for line in source.splitlines())
+
+        self.assertLessEqual(nonblank, 200)
+        self.assertNotIn("sqlite", source.lower())
+        self.assertNotIn("On course", source)
+        self.assertNotIn("Drifting", source)
+        self.assertNotIn("--rail", source)
 
 
 if __name__ == "__main__":

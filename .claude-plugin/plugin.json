@@ -1,8 +1,8 @@
 {
   "name": "chatrail",
   "displayName": "ChatRail",
-  "version": "0.2.1",
-  "description": "A quiet continuity layer that keeps long AI coding tasks oriented across compaction, detours, restarts, and folder changes.",
+  "version": "1.0.0",
+  "description": "A quiet checkpoint that keeps long AI coding tasks oriented across compaction, restarts, and folder changes.",
   "author": {
     "name": "Orchestrator HQ",
     "email": "admin@orchestrator.so"
