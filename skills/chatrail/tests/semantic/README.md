@@ -4,7 +4,7 @@ These cases test AI meaning. They do not add meaning rules to Python.
 
 ## Run rule
 
-Run every case twice with a fresh model and no prior case chat. That is 12
+Run every case twice with a fresh model and no prior case chat. That is 20
 runs. Give the model:
 
 1. the current production `SKILL.md`;
@@ -52,7 +52,7 @@ except where a case asks for an exact action, marker, heading, or quote.
 Save results under a new review folder with one prompt and one output file per
 run. Name them `<case>-run-1` and `<case>-run-2`.
 
-The six cases are:
+The ten cases are:
 
 1. `01-goal-change.md`
 2. `02-side-task.md`
@@ -60,3 +60,12 @@ The six cases are:
 4. `04-true-no-change.md`
 5. `05-unapproved-ai-pivot.md`
 6. `06-cold-return.md`
+7. `07-drift-alarm.md`
+8. `08-drift-already-flagged.md`
+9. `09-no-adopt-without-user.md`
+10. `10-user-ordered-detour.md`
+
+## Live protocol
+
+Ceremony-lite: before ship, run only cases 07, 08, and 10 live, per the run
+rule above. The full ten-case, twenty-run suite is for contract changes.

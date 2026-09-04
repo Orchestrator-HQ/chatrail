@@ -1,5 +1,5 @@
 {
-  "description": "ChatRail semantic end-of-turn review",
+  "description": "ChatRail semantic end-of-turn review and session re-entry orientation",
   "hooks": {
     "Stop": [
       {
@@ -7,6 +7,18 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/chatrail/scripts/chatrail.py\" stop",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/chatrail/scripts/chatrail.py\" inject",
             "timeout": 5
           }
         ]

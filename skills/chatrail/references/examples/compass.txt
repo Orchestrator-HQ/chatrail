@@ -1,0 +1,19 @@
+╭───────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ⌖ COMPASS · chatrail-1.1                                              last save · today 16:42 │
+├───────────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                               │
+│            true north ▸ ship the PR                                                           │
+│               N                                                                               │
+│          _.-''|''-._ N 34° E                                                                  │
+│        .'     |   ▲ '.         ╌╌ Heading: N 34° E · DISTRACTING BUT USEFUL SIDEWORK UNDERWAY │
+│       /       |  ╱    \        ╌ publish 1.1 to the marketplace   ~ ghost                     │
+│      ;        | ╱      ;       ╌ verify live in a real session    ~ ghost                     │
+│    W ┼────────●────────┼ E     ◉ TRUE NORTH — ship the PR         ▲ now                       │
+│      ;       ╱|        ;       ┣ #3  plan v2 approved              16:12                      │
+│       \       |       /        ┣ #2  hijack fixed                  14:03                      │
+│        '.     |     .'         ┣ #1  goal set                      11:47                      │
+│          `-.._|_..-'           ┷ start                                                        │
+│               S                N toward goal      E useful side work                          │
+│         ▾ away from goal       S against / false  W costly drift                              │
+│                                                                                               │
+╰───────────────────────────────────────────────────────────────────────────────────────────────╯
